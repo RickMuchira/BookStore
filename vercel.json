@@ -3,7 +3,7 @@
     "builds": [
       {
         "src": "api/index.php",
-        "use": "@vercel/php"
+        "use": "vercel-php@0.7.3"
       },
       {
         "src": "package.json",
@@ -18,7 +18,9 @@
       {
         "src": "/build/(.*)",
         "dest": "/build/$1",
-        "headers": { "cache-control": "public,max-age=31536000,immutable" }
+        "headers": {
+          "cache-control": "public,max-age=31536000,immutable"
+        }
       },
       {
         "src": "/api/(.*)",
