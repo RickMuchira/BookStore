@@ -1,0 +1,295 @@
+1. Category Model
+This model handles all category-related functionality:
+
+Relationships:
+
+parent() - Gets the parent category (for subcategories)
+children() - Gets all child categories
+products() - Gets all products in this category
+
+
+Helper Methods:
+
+isMainCategory() - Checks if this is a main category (no parent)
+isPromotional() - Checks if this is a promotional category
+
+
+
+This model supports the category management features described in your document, including parent/child relationships and promotional categories.
+2. Product Model
+This model manages book products:
+
+Relationships:
+
+images() - Gets all images for this product
+primaryImage() - Gets the main/cover image
+categories() - Gets all categories this product belongs to
+
+
+Helper Methods:
+
+getProfit() - Calculates the profit based on price and cost
+getMarginPercentage() - Calculates the profit margin percentage
+getDiscountPercentage() - Calculates discount % when compare-at price exists
+inStock() - Checks if the product has stock available
+isActive() - Checks if the product is active
+
+
+Query Scopes:
+
+scopeActive() - Filter query to only active products
+scopeInStock() - Filter query to only in-stock products
+
+
+
+This model handles all the product information management including pricing, inventory, and status.
+3. ProductImage Model
+This model manages the media/images for products:
+
+Relationships:
+
+product() - Gets the product this image belongs to
+
+
+Helper Methods:
+
+makePrimary() - Sets this image as the primary image for its product
+
+
+Query Scopes:
+
+scopePrimary() - Filters query to only primary images
+
+
+<?php
+
+// app/Models/Category.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class Category extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'name',
+        'description',
+        'display_order',
+        'parent_id',
+        'image_path',
+        'is_promotional',
+    ];
+
+    /**
+     * Get the parent category
+     */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(Category::class, 'parent_id');
+    }
+
+    /**
+     * Get the child categories
+     */
+    public function children(): HasMany
+    {
+        return $this->hasMany(Category::class, 'parent_id');
+    }
+
+    /**
+     * Get the products that belong to this category
+     */
+    public function products(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class);
+    }
+
+    /**
+     * Check if this is a main category (no parent)
+     */
+    public function isMainCategory(): bool
+    {
+        return is_null($this->parent_id);
+    }
+
+    /**
+     * Check if this is a promotional category
+     */
+    public function isPromotional(): bool
+    {
+        return (bool) $this->is_promotional;
+    }
+}
+
+// app/Models/Product.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Product extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'title',
+        'description',
+        'status',
+        'regular_price',
+        'compare_at_price',
+        'cost_per_item',
+        'stock_quantity',
+        'sku',
+    ];
+
+    /**
+     * Get the profit for this product
+     */
+    public function getProfit()
+    {
+        if ($this->cost_per_item) {
+            return $this->regular_price - $this->cost_per_item;
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get the profit margin percentage for this product
+     */
+    public function getMarginPercentage()
+    {
+        if ($this->cost_per_item && $this->regular_price > 0) {
+            $profit = $this->getProfit();
+            return ($profit / $this->regular_price) * 100;
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get the discount percentage if there's a compare-at price
+     */
+    public function getDiscountPercentage()
+    {
+        if ($this->compare_at_price && $this->compare_at_price > $this->regular_price) {
+            $discount = $this->compare_at_price - $this->regular_price;
+            return ($discount / $this->compare_at_price) * 100;
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get all images for this product
+     */
+    public function images(): HasMany
+    {
+        return $this->hasMany(ProductImage::class);
+    }
+
+    /**
+     * Get the primary image for this product
+     */
+    public function primaryImage()
+    {
+        return $this->images()->where('is_primary', true)->first();
+    }
+
+    /**
+     * Get all categories this product belongs to
+     */
+    public function categories(): BelongsToMany
+    {
+        return $this->belongsToMany(Category::class);
+    }
+
+    /**
+     * Check if the product is in stock
+     */
+    public function inStock(): bool
+    {
+        return $this->stock_quantity > 0;
+    }
+
+    /**
+     * Check if the product is active
+     */
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    /**
+     * Scope for active products
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+
+    /**
+     * Scope for in-stock products
+     */
+    public function scopeInStock($query)
+    {
+        return $query->where('stock_quantity', '>', 0);
+    }
+}
+
+// app/Models/ProductImage.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class ProductImage extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'product_id',
+        'image_path',
+        'display_order',
+        'is_primary',
+    ];
+
+    /**
+     * Get the product this image belongs to
+     */
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * Scope to get primary images
+     */
+    public function scopePrimary($query)
+    {
+        return $query->where('is_primary', true);
+    }
+
+    /**
+     * Set this image as the primary image
+     */
+    public function makePrimary()
+    {
+        // First, remove primary flag from all other images for this product
+        ProductImage::where('product_id', $this->product_id)
+            ->where('id', '!=', $this->id)
+            ->update(['is_primary' => false]);
+        
+        // Then set this one as primary
+        $this->is_primary = true;
+        $this->save();
+    }
+}

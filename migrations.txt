@@ -1,0 +1,178 @@
+1. Categories Table
+This table handles the category management functionality described in your document:
+
+Supports category creation with name and description
+Enables category organization with parent/child relationships
+Allows promotional categories with the is_promotional flag
+Includes display order for manual sorting of categories
+Supports category images
+
+2. Products Table
+This table manages the book product information:
+
+Basic product info: title, description, status (active/draft)
+Pricing configuration: regular price and compare-at price for discounts
+Cost tracking: cost per item (profit and margin will be calculated in the application)
+Inventory management: stock quantity and SKU/ISBN
+
+3. Product Images Table
+This table handles the media management requirements:
+
+Supports multiple images per product
+Tracks display order for image sequencing
+Identifies the primary image (book cover) with a boolean flag
+
+4. Product-Category Relationship Table
+This pivotal table enables the manual category assignment workflow:
+
+Creates a many-to-many relationship between products and categories
+Prevents duplicate assignments with a unique constraint
+Supports bulk operations by providing a simple join table
+
+<?php
+
+// Migration: create_categories_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('categories', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->integer('display_order')->default(0);
+            $table->unsignedBigInteger('parent_id')->nullable();
+            $table->string('image_path')->nullable();
+            $table->boolean('is_promotional')->default(false);
+            $table->timestamps();
+
+            // Self-referencing foreign key for parent-child relationships
+            $table->foreign('parent_id')->references('id')->on('categories')->onDelete('set null');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('categories');
+    }
+};
+
+// Migration: create_products_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('products', function (Blueprint $table) {
+            $table->id();
+            $table->string('title');
+            $table->text('description')->nullable();
+            $table->enum('status', ['active', 'draft'])->default('draft');
+            
+            // Pricing
+            $table->decimal('regular_price', 10, 2);
+            $table->decimal('compare_at_price', 10, 2)->nullable();
+            
+            // Cost & Profitability
+            $table->decimal('cost_per_item', 10, 2)->nullable();
+            // Note: Profit and margin are calculated values, not stored
+            
+            // Inventory
+            $table->integer('stock_quantity')->default(0);
+            $table->string('sku')->nullable(); // ISBN for books
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('products');
+    }
+};
+
+// Migration: create_product_images_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('product_images', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('product_id');
+            $table->string('image_path');
+            $table->integer('display_order')->default(0);
+            $table->boolean('is_primary')->default(false);
+            $table->timestamps();
+            
+            $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('product_images');
+    }
+};
+
+// Migration: create_product_category_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('product_category', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('product_id');
+            $table->unsignedBigInteger('category_id');
+            $table->timestamps();
+            
+            $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
+            $table->foreign('category_id')->references('id')->on('categories')->onDelete('cascade');
+            
+            // Prevent duplicate product-category assignments
+            $table->unique(['product_id', 'category_id']);
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('product_category');
+    }
+};
